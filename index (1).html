@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tortuga laúd: atrapa medusas</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html{height:100%;height:100dvh}
+html,body{margin:0;background:#06243a;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:#d8f3ff}
+body{height:100%}
+body{display:flex;flex-direction:column}
+#stage{position:relative;flex:1;min-height:0;width:100%;max-width:480px;align-self:center;touch-action:none}
+#c{display:block;width:100%;height:100%;touch-action:none}
+#panel{position:absolute;inset:0;display:flex;background:rgba(3,18,30,.86);padding:12px;overflow:auto;touch-action:pan-y;cursor:pointer}
+#panel.hide{display:none}
+.card{max-width:420px;width:100%;text-align:center;margin:auto}
+h1{margin:0 0 8px;font-size:26px}
+.legend{display:flex;justify-content:center;gap:24px;margin:4px 0 8px;font-size:13px}
+.legend canvas{width:64px;height:64px;display:block;margin:0 auto 2px}
+.how{font-size:13.5px;line-height:1.4;text-align:left;margin:0 auto 8px;padding-left:20px;max-width:340px}
+.how li{margin:3px 0}
+.stats{font-size:17px;line-height:1.7;margin:6px 0}
+.fact{font-size:14px;opacity:.9;margin:8px 0}
+.go{font-weight:700;color:#fff;font-size:18px;margin:10px 0}
+.don{display:inline-block;background:#f2c230;color:#2a2410;font-weight:700;border-radius:10px;padding:12px 26px;font-size:18px;text-decoration:none}
+footer{display:flex;align-items:center;gap:12px;max-width:360px;margin:0 auto;padding:10px 12px;color:#9fb3a5}
+footer img{height:72px;width:auto;flex-shrink:0}
+.logo{display:flex;align-items:center;justify-content:center;width:72px;height:72px;flex:none;border-radius:50%;background:#0f5c7a;font-size:32px}
+footer p{margin:0;font-size:13px;text-align:left}
+footer nav{display:flex;flex-wrap:wrap;gap:2px 12px;margin-top:4px}
+footer a{color:#e9efe3;font-size:13px;text-decoration:underline}
+@media (max-height:720px){h1{font-size:22px}.how{font-size:12.5px;line-height:1.3}.legend canvas{width:52px;height:52px}.fact{font-size:13px;margin:4px 0}footer img{height:56px}.logo{width:56px;height:56px;font-size:26px}}
+</style></head><body>
+<div id="stage"><canvas id="c"></canvas><div id="panel"><div class="card" id="card"></div></div></div>
+<footer id="ft"></footer>
+<script>
+// ===== Datos editables del pie de página y la donación (usar los del juego de la franciscana) =====
+const CONFIG={
+  logo:'Logo.png',   // archivo del logo de AQM (misma carpeta que index.html)
+  text:'Para más info sobre cómo proteger a las tortugas marinas encontranos en:',
+  links:[{t:'Aquamarina.org',u:'https://aquamarina.org/'},{t:'Instagram',u:'https://www.instagram.com/aquamarina_org'}],
+  donateUrl:'https://donaronline.org/aquamarina/por-el-delfin-franciscana'
+};
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),panel=document.getElementById('panel'),card=document.getElementById('card'),stage=document.getElementById('stage');
+document.getElementById('ft').innerHTML=(CONFIG.logo?'<img src="'+CONFIG.logo+'" alt="Logo de AQM">':'<span class="logo">🐢</span>')+'<div><p>'+CONFIG.text+'</p><nav>'+CONFIG.links.map(l=>'<a href="'+l.u+'" target="_blank" rel="noopener">'+l.t+'</a>').join('')+'</nav></div>';
+const FACTS=["Las tortugas laúd comen sobre todo medusas.","Una bolsa flotando se parece mucho a una medusa.","El plástico puede bloquear su estómago y dejarlas sin alimentarse.","Cada bolsa reutilizable es una bolsa menos en el mar."];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+let overFact='',yaw=0,w=0,h=0,ts=110,r=24,ty=0,t=0,ph=0,state='start',score=0,lives=3,level=1,catches=0,streak=0,best=0,bestLvl=1,overAt=0,spawn=0,items=[],fx=[],bub=[],tx=0,tgt=0,vx=0,flash=0,toast={t:0,s:''};
+try{best=+localStorage.getItem('tl_best2')||0;bestLvl=+localStorage.getItem('tl_lvl2')||1}catch(e){}
+function say(s,d=3.5){toast={t:d,s}}
+
+// ===== Tortuga laúd vista desde arriba (cabeza hacia arriba; unidades = largo total) =====
+const rnd=(()=>{let s=7;return()=>(s=(s*16807)%2147483647)/2147483647})();
+const sm=u=>u*u*(3-2*u);
+const hw=y=>{if(y<-.1){return .09+.15*sm(clamp((y+.29)/.19,0,1))}return .24*(1-Math.pow(clamp((y+.1)/.61,0,1),2.2))};
+const bodyDots=[];while(bodyDots.length<150){const y=-.27+rnd()*.76,x=(rnd()*2-1)*hw(y)*.9;bodyDots.push([x,y,.004+rnd()*.007])}
+const flipDots=[...Array(34)].map(()=>[.06+rnd()*.88,rnd()*2-1,.004+rnd()*.006]);
+const headDots=[...Array(9)].map(()=>[(rnd()*2-1)*.045,-.43+(rnd()*2-1)*.06,.004+rnd()*.004]);
+function dots(c,list,col){c.fillStyle=col;c.beginPath();list.forEach(d=>{c.moveTo(d[0]+d[2],d[1]);c.arc(d[0],d[1],d[2],0,7)});c.fill()}
+function flip(c,len,w0,base,bend){
+  const N=10,P=[[0,0,base]];let x=0,y=0;
+  for(let k=1;k<=N;k++){const u=k/N,a=base+bend*u*u;x+=Math.cos(a)*len/N;y+=Math.sin(a)*len/N;P.push([x,y,a])}
+  const wd=u=>w0*(1-.6*u*u)*(u>.88?Math.sqrt(Math.max(0,1-Math.pow((u-.88)/.12,2))):1);
+  c.beginPath();
+  for(let k=0;k<=N;k++){const p=P[k],q=wd(k/N);c.lineTo(p[0]-Math.sin(p[2])*q,p[1]+Math.cos(p[2])*q)}
+  for(let k=N;k>=0;k--){const p=P[k],q=wd(k/N);c.lineTo(p[0]+Math.sin(p[2])*q,p[1]-Math.cos(p[2])*q)}
+  c.closePath();c.fillStyle='#0d1724';c.fill();c.strokeStyle='#2a3e55';c.lineWidth=.006;c.stroke();
+  const L=flipDots.map(d=>{const f=d[0]*N,k=Math.min(N-1,Math.floor(f)),m=f-k,a=P[k],b=P[k+1],q=wd(d[0])*.8*d[1],an=a[2]+(b[2]-a[2])*m;
+    return [a[0]+(b[0]-a[0])*m-Math.sin(an)*q,a[1]+(b[1]-a[1])*m+Math.cos(an)*q,d[2]*(len>.3?1:.8)]});
+  dots(c,L,'rgba(235,243,250,.8)');
+}
+function turtle(c,x,y,s,yaw,p){
+  c.save();c.translate(x,y);c.rotate(yaw+Math.sin(p*.5)*.03);c.scale(s,s);c.lineJoin='round';const sv=clamp(vx/500,-1,1);
+  for(const sd of[1,-1]){
+    c.save();c.scale(sd,1);
+    c.save();c.translate(.1,.33);flip(c,.2,.06,.85+.08*Math.sin(p+1.3),.15*Math.sin(p+1.3));c.restore();
+    c.translate(.08,-.19);flip(c,.58*(1-.03*(1-Math.cos(p))),.105,.3+.12*Math.abs(sv)+(.14+.12*Math.max(0,-sd*sv))*Math.sin(p),.3*Math.sin(p-.8));
+    c.restore();
+  }
+  c.save();c.translate(Math.sin(p*.5)*.012,0);
+  c.fillStyle='#0f1a29';c.strokeStyle='#2a3e55';c.lineWidth=.006;
+  c.beginPath();c.ellipse(0,-.425,.07,.088,0,0,7);c.fill();c.stroke();
+  c.fillStyle='#1a2c42';c.fillRect(-.07,-.36,.14,.05);
+  dots(c,headDots,'rgba(235,243,250,.75)');
+  c.fillStyle='#000';c.beginPath();c.arc(-.058,-.43,.009,0,7);c.arc(.058,-.43,.009,0,7);c.fill();
+  c.restore();
+  const g=c.createLinearGradient(-.24,0,.24,0);g.addColorStop(0,'#080e17');g.addColorStop(.5,'#1d2c3e');g.addColorStop(1,'#080e17');
+  c.beginPath();
+  for(let y=-.29;y<=.511;y+=.02)c.lineTo(hw(y),y);
+  for(let y=.51;y>=-.291;y-=.02)c.lineTo(-hw(y),y);
+  c.closePath();c.fillStyle=g;c.fill();c.strokeStyle='#334a63';c.lineWidth=.008;c.stroke();
+  c.strokeStyle='rgba(215,228,240,.7)';c.lineWidth=.011;c.lineCap='round';
+  for(let i=-2;i<=2;i++){c.beginPath();c.moveTo(i*.04,-.28);c.quadraticCurveTo(i*.062,.08,i*.012,.46);c.stroke()}
+  for(const sd of[1,-1]){c.beginPath();c.moveTo(sd*.185,-.08);c.quadraticCurveTo(sd*.185,.15,sd*.04,.43);c.stroke()}
+  dots(c,bodyDots,'rgba(235,243,250,.78)');
+  c.restore();
+}
+
+// ===== Medusa celeste y bolsa translúcida (se parecen a propósito) =====
+function jelly(c,x,y,rr,p,anim){
+  const k=anim?t:.3;c.save();c.translate(x,y);c.lineCap='round';
+  c.strokeStyle='rgba(170,225,250,.55)';c.lineWidth=Math.max(1,rr*.05);
+  for(let i=0;i<7;i++){const bx=(i-3)*rr*.28;c.beginPath();c.moveTo(bx,rr*.1);for(let j=1;j<=6;j++)c.lineTo(bx+Math.sin(k*1.5+p+i+j*.9)*rr*.12*j/3,rr*.1+j*rr*.27);c.stroke()}
+  c.strokeStyle='rgba(205,240,255,.7)';c.lineWidth=Math.max(2,rr*.13);
+  for(let i=0;i<3;i++){const bx=(i-1)*rr*.3;c.beginPath();c.moveTo(bx,rr*.1);c.quadraticCurveTo(bx+Math.sin(k*1.2+p+i)*rr*.25,rr*.7,bx+Math.sin(k*1.2+p+i+1)*rr*.2,rr*1.25);c.stroke()}
+  const sq=1+.05*Math.sin(k*1.6+p);c.scale(sq,1/sq);
+  c.beginPath();c.moveTo(-rr,0);c.bezierCurveTo(-rr,-rr*1.3,rr,-rr*1.3,rr,0);
+  for(let j=0;j<6;j++)c.quadraticCurveTo(rr-(j+.5)*rr/3,rr*.26,rr-(j+1)*rr/3,0);
+  c.closePath();
+  const g=c.createRadialGradient(0,-rr*.5,rr*.1,0,-rr*.2,rr*1.2);
+  g.addColorStop(0,'rgba(240,252,255,.95)');g.addColorStop(.6,'rgba(160,220,248,.75)');g.addColorStop(1,'rgba(110,190,235,.55)');
+  c.fillStyle=g;c.fill();c.strokeStyle='rgba(220,245,255,.8)';c.lineWidth=rr*.05;c.stroke();
+  c.strokeStyle='rgba(255,255,255,.5)';c.lineWidth=rr*.06;c.beginPath();c.ellipse(0,-rr*.3,rr*.5,rr*.28,0,0,7);c.stroke();
+  c.fillStyle='rgba(255,255,255,.5)';c.beginPath();c.ellipse(-rr*.42,-rr*.78,rr*.2,rr*.1,-.6,0,7);c.fill();
+  c.restore();
+}
+function bag(c,x,y,rr,p,anim){
+  const k=anim?t:.3,wob=Math.sin(k*1.4+p)*rr*.05;
+  c.save();c.translate(x,y+rr*.1);c.transform(1,0,Math.sin(k*1.1+p)*.06,1,0,0);c.lineJoin='round';
+  c.beginPath();c.moveTo(-.85*rr,1.1*rr);c.lineTo(-.85*rr,-1.1*rr);
+  c.quadraticCurveTo(-.85*rr,-1.4*rr,-.6*rr,-1.4*rr);c.quadraticCurveTo(-.35*rr,-1.4*rr,-.35*rr,-1.1*rr);
+  c.quadraticCurveTo(-.3*rr,-.7*rr,0,-.7*rr);c.quadraticCurveTo(.3*rr,-.7*rr,.35*rr,-1.1*rr);
+  c.quadraticCurveTo(.35*rr,-1.4*rr,.6*rr,-1.4*rr);c.quadraticCurveTo(.85*rr,-1.4*rr,.85*rr,-1.1*rr);
+  c.lineTo(.85*rr,1.1*rr);c.quadraticCurveTo(.4*rr,1.2*rr+wob,0,1.1*rr);c.quadraticCurveTo(-.4*rr,rr-wob,-.85*rr,1.1*rr);
+  c.closePath();
+  const g=c.createLinearGradient(-.85*rr,0,.85*rr,0);
+  g.addColorStop(0,'rgba(226,231,237,.95)');g.addColorStop(.5,'rgba(255,255,255,.96)');g.addColorStop(1,'rgba(220,226,233,.95)');
+  c.fillStyle=g;c.fill();c.strokeStyle='rgba(160,172,186,.95)';c.lineWidth=rr*.05;c.stroke();
+  c.strokeStyle='rgba(150,165,180,.45)';c.lineWidth=rr*.035;c.beginPath();
+  c.moveTo(-.5*rr,-.5*rr);c.lineTo(-.35*rr,.5*rr);c.moveTo(.1*rr,-.3*rr);c.lineTo(.2*rr,.7*rr);c.moveTo(.55*rr,-.4*rr);c.lineTo(.5*rr,.4*rr);
+  c.moveTo(-.85*rr,.85*rr);c.lineTo(.85*rr,.85*rr);c.stroke();
+  c.restore();
+}
+
+// ===== Juego =====
+function resize(){
+  const d=devicePixelRatio||1;w=cv.clientWidth;h=cv.clientHeight;if(!w)return;
+  cv.width=w*d;cv.height=h*d;ctx.setTransform(d,0,0,d,0,0);
+  ts=clamp(w*.27,100,160);r=clamp(w*.048,16,27);ty=h-ts*.55-14;
+  tx=tgt=clamp(tx||w/2,ts*.4,w-ts*.4);
+  if(!bub.length)bub=[...Array(26)].map(()=>({x:Math.random(),y:Math.random(),r:2+Math.random()*5,v:.03+Math.random()*.06}));
+}
+function startGame(){score=0;lives=3;level=1;catches=0;streak=0;items=[];fx=[];spawn=.6;state='play';panel.classList.add('hide');say('¡Atrapá medusas y esquivá bolsas!',3)}
+function addItem(){
+  const isBag=Math.random()<Math.min(.55,.3+.02*level),amp=10+Math.random()*16;
+  items.push({bag:isBag,x0:amp+r+Math.random()*(w-2*(amp+r)),x:0,y:-50,v:h*Math.min(.62,.24+.025*level)*(.85+Math.random()*.3),f:.5+Math.random()*.7,ph:Math.random()*6,amp});
+}
+function endGame(){
+  state='over';overAt=performance.now();overFact=FACTS[Math.random()*FACTS.length|0];
+  if(score>best){best=score;try{localStorage.setItem('tl_best2',best)}catch(e){}}
+  if(level>bestLvl){bestLvl=level;try{localStorage.setItem('tl_lvl2',bestLvl)}catch(e){}}
+  showOver();
+}
+function update(dt){
+  if(state!=='play')return;
+  const o=tx;tx+=(tgt-tx)*Math.min(1,dt*8);tx=clamp(tx,ts*.4,w-ts*.4);vx=(tx-o)/Math.max(dt,.001);
+  spawn-=dt;
+  if(spawn<=0){addItem();spawn=Math.max(.35,.95-level*.05)*(.8+Math.random()*.4)}
+  for(let i=items.length-1;i>=0;i--){
+    const it=items[i];it.y+=it.v*dt;it.x=it.x0+Math.sin(t*it.f+it.ph)*it.amp;
+    const dx=Math.abs(it.x-tx),dy=it.y-ty,ir=r*.6;
+    const hit=Math.pow(dx/(.22*ts+ir),2)+Math.pow(dy/(.5*ts+ir),2)<1||(dx<.58*ts&&Math.abs(dy+.19*ts)<.05*ts+ir*.8);
+    if(hit){
+      items.splice(i,1);
+      if(!it.bag){
+        const m=Math.min(5,1+Math.floor(streak/5));streak++;score+=10*m;catches++;level=1+Math.floor(catches/10);
+        fx.push({x:it.x,y:it.y,s:'+'+10*m,t:.8,c:'#bfe9ff'});
+      }else{
+        lives--;streak=0;flash=.4;
+        
+        if(lives<=0){endGame();return}
+      }
+    }else if(it.y>h+60){items.splice(i,1);if(!it.bag)streak=0}
+  }
+}
+function wrap(txt,mw){
+  const ws=txt.split(' ');let l='',o=[];
+  ws.forEach(x=>{const n=l?l+' '+x:x;if(ctx.measureText(n).width>mw&&l){o.push(l);l=x}else l=n});
+  o.push(l);return o;
+}
+function draw(dt){
+  const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'#0a4466');g.addColorStop(1,'#041a2c');
+  ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='rgba(180,230,255,.15)';
+  bub.forEach(b=>{b.y-=b.v*dt;if(b.y<-.05)b.y=1.05;ctx.beginPath();ctx.arc(b.x*w,b.y*h,b.r,0,7);ctx.fill()});
+  items.forEach(it=>{
+    ctx.save();ctx.translate(it.x,it.y);ctx.rotate(Math.sin(t*1.1+it.ph)*.12);
+    if(it.bag)bag(ctx,0,0,r,it.ph,true);else jelly(ctx,0,-r*.2,r,it.ph,true);
+    ctx.restore();
+  });
+  turtle(ctx,tx,ty,ts,yaw,ph);
+  fx.forEach(f=>{f.t-=dt;ctx.globalAlpha=Math.max(0,f.t/.8);ctx.fillStyle=f.c;ctx.font='bold 18px system-ui,sans-serif';ctx.textAlign='center';ctx.fillText(f.s,f.x,f.y-(.8-f.t)*40);ctx.globalAlpha=1});
+  fx=fx.filter(f=>f.t>0);
+  if(flash>0){ctx.fillStyle='rgba(255,60,60,'+flash*.8+')';ctx.fillRect(0,0,w,h);flash-=dt}
+  ctx.fillStyle='#d8f3ff';ctx.font='bold 17px system-ui,sans-serif';
+  ctx.textAlign='left';ctx.fillText('🪼 '+score,14,30);
+  ctx.textAlign='center';ctx.fillText('Nivel '+level+(streak>=5?'  ×'+Math.min(5,1+Math.floor(streak/5)):''),w/2,30);
+  ctx.textAlign='right';ctx.fillText('🐢'.repeat(Math.max(lives,0)),w-14,30);
+  if(toast.t>0&&state==='play'){
+    ctx.fillStyle='#d8f3ff';ctx.font='14px system-ui,sans-serif';ctx.textAlign='center';
+    wrap(toast.s,w-30).forEach((l,i)=>ctx.fillText(l,w/2,58+i*18));
+  }
+}
+
+// ===== Paneles =====
+function showStart(){
+  card.innerHTML='<h1>Tortuga laúd</h1><p class="fact" style="margin-top:0">Las tortugas laúd comen medusas, pero confunden las bolsas de plástico con ellas. ¡Ayudala a elegir bien!</p>'+
+  '<div class="legend"><div><canvas id="lj" width="128" height="128"></canvas>Medusa: ¡atrapá!</div><div><canvas id="lb" width="128" height="128"></canvas>Bolsa: ¡esquivá!</div></div>'+
+  '<ol class="how"><li>Deslizá el dedo (o el cursor) de lado a lado para mover la tortuga.</li><li>Atrapá las medusas celestes: cada una suma 10 puntos.</li><li>Esquivá las bolsas: cada golpe te quita una vida (tenés 3).</li><li>Con 5 medusas seguidas sube el combo, hasta ×5.</li><li>Cada 10 medusas pasás de nivel y todo cae más rápido.</li></ol><div class="go">Tocá para jugar</div>';
+  jelly(document.getElementById('lj').getContext('2d'),64,52,26,0,false);
+  bag(document.getElementById('lb').getContext('2d'),64,60,24,0,false);
+  panel.classList.remove('hide');
+}
+function showOver(){
+  card.innerHTML='<h1>Fin del juego</h1><div class="stats">Puntaje: <b>'+score+'</b> · Récord: <b>'+best+'</b><br>Nivel: <b>'+level+'</b> · Nivel máximo: <b>'+bestLvl+'</b></div><p class="fact">'+overFact+'</p><div class="go">Tocá para reiniciar</div><a class="don" href="'+(CONFIG.donateUrl||'#')+'" target="_blank" rel="noopener">Donar ❤</a>';
+  panel.classList.remove('hide');
+}
+function tap(){if((state==='start'||state==='over')&&performance.now()-overAt>700)startGame()}
+function move(e){const b=cv.getBoundingClientRect();tgt=clamp(e.clientX-b.left,ts*.4,w-ts*.4)}
+panel.addEventListener('pointerdown',e=>{move(e);if(!e.target.closest('.don'))tap()});
+card.addEventListener('click',e=>{if(e.target.closest('.don')&&!CONFIG.donateUrl)e.preventDefault()});
+cv.addEventListener('pointerdown',move);
+addEventListener('pointermove',move);
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'){e.preventDefault();tgt=clamp(tgt-ts*.6,ts*.4,w-ts*.4)}
+  else if(e.key==='ArrowRight'){e.preventDefault();tgt=clamp(tgt+ts*.6,ts*.4,w-ts*.4)}
+  else if(e.key===' ')tap();
+});
+let last=0;
+function loop(ts_){
+  const dt=Math.min(.05,(ts_-last)/1000||0);last=ts_;t+=dt;ph+=dt*(1.8+Math.min(2.2,Math.abs(vx)/250));yaw+=(clamp(vx*.0005,-.3,.3)-yaw)*Math.min(1,dt*4);
+  if(toast.t>0&&state==='play')toast.t-=dt;
+  update(dt);draw(dt);requestAnimationFrame(loop);
+}
+addEventListener('resize',resize);
+if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);
+resize();showStart();requestAnimationFrame(loop);
+</script></body></html>
