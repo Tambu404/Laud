@@ -44,7 +44,12 @@ const CONFIG={
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),panel=document.getElementById('panel'),card=document.getElementById('card'),stage=document.getElementById('stage');
 document.getElementById('ft').innerHTML=(CONFIG.logo?'<img src="'+CONFIG.logo+'" alt="Logo de AQM">':'<span class="logo">🐢</span>')+'<div><p>'+CONFIG.text+'</p><nav>'+CONFIG.links.map(l=>'<a href="'+l.u+'" target="_blank" rel="noopener">'+l.t+'</a>').join('')+'</nav></div>';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-let overFact='',yaw=0,w=0,h=0,ts=110,r=24,ty=0,t=0,ph=0,state='start',score=0,lives=3,level=1,catches=0,streak=0,best=0,bestLvl=1,overAt=0,spawn=0,items=[],fx=[],bub=[],tx=0,tgt=0,vx=0,flash=0,toast={t:0,s:''};
+// ===== Estadísticas (GoatCounter) =====
+let games=0;
+function track(p,ti){try{if(window.goatcounter&&goatcounter.count)goatcounter.count({path:p,title:ti,event:true})}catch(e){}}
+addEventListener('load',()=>{try{if(localStorage.getItem('tl-visited'))track('visitante-recurrente','Volvió a abrir el juego');else localStorage.setItem('tl-visited','1')}catch(e){}});
+document.querySelectorAll('footer a').forEach(a=>a.addEventListener('click',()=>track('click-'+a.textContent.trim().toLowerCase().replace(/\W+/g,'-'),'Clic en '+a.textContent.trim())));
+let yaw=0,w=0,h=0,ts=110,r=24,ty=0,t=0,ph=0,state='start',score=0,lives=3,level=1,catches=0,streak=0,best=0,bestLvl=1,overAt=0,spawn=0,items=[],fx=[],bub=[],tx=0,tgt=0,vx=0,flash=0,toast={t:0,s:''};
 try{best=+localStorage.getItem('tl_best2')||0;bestLvl=+localStorage.getItem('tl_lvl2')||1}catch(e){}
 function say(s,d=3.5){toast={t:d,s}}
 
@@ -139,13 +144,13 @@ function resize(){
   tx=tgt=clamp(tx||w/2,ts*.4,w-ts*.4);
   if(!bub.length)bub=[...Array(26)].map(()=>({x:Math.random(),y:Math.random(),r:2+Math.random()*5,v:.03+Math.random()*.06}));
 }
-function startGame(){score=0;lives=3;level=1;catches=0;streak=0;items=[];fx=[];spawn=.6;state='play';panel.classList.add('hide');say('¡Atrapá medusas y esquivá bolsas!',3)}
+function startGame(){track('partida','Partida iniciada');games++;if(games>1)track('partida-repetida','Volvió a jugar');track('partida-nro-'+String(Math.min(games,20)).padStart(2,'0'),'Número de partida en la sesión');score=0;lives=3;level=1;catches=0;streak=0;items=[];fx=[];spawn=.6;state='play';panel.classList.add('hide');say('¡Atrapá medusas y esquivá bolsas!',3)}
 function addItem(){
   const isBag=Math.random()<Math.min(.55,.3+.02*level),amp=10+Math.random()*16;
   items.push({bag:isBag,x0:amp+r+Math.random()*(w-2*(amp+r)),x:0,y:-50,v:h*Math.min(.62,.17+.025*level)*(.85+Math.random()*.3),f:.5+Math.random()*.7,ph:Math.random()*6,amp});
 }
 function endGame(){
-  state='over';overAt=performance.now();
+  state='over';overAt=performance.now();track('puntaje-'+String(score).padStart(3,'0'),'Puntaje al perder');track('nivel-'+String(level).padStart(2,'0'),'Nivel alcanzado al perder');
   if(score>best){best=score;try{localStorage.setItem('tl_best2',best)}catch(e){}}
   if(level>bestLvl){bestLvl=level;try{localStorage.setItem('tl_lvl2',bestLvl)}catch(e){}}
   showOver();
@@ -211,13 +216,13 @@ function showStart(){
   panel.classList.remove('hide');
 }
 function showOver(){
-  card.innerHTML='<h1>Fin del juego</h1><div class="stats">Puntaje: <b>'+score+'</b> · Récord: <b>'+best+'</b><br>Nivel: <b>'+level+'</b> · Nivel máximo: <b>'+bestLvl+'</b></div><div class="go">Tocá para reiniciar</div><a class="don" href="'+(CONFIG.donateUrl||'#')+'" target="_blank" rel="noopener">Donar ❤</a>';
+  card.innerHTML='<h1>Fin del juego</h1><div class="stats">Puntaje: <b>'+score+'</b> · Récord: <b>'+best+'</b><br>Nivel: <b>'+level+'</b> · Nivel máximo: <b>'+bestLvl+'</b></div><div class="go">Tocá para reiniciar</div><a class="don" href="'+(CONFIG.donateUrl||'#')+'" target="_blank" rel="noopener">Quiero ayudarlos</a>';
   panel.classList.remove('hide');
 }
 function tap(){if((state==='start'||state==='over')&&performance.now()-overAt>700)startGame()}
 function move(e){const b=cv.getBoundingClientRect();tgt=clamp(e.clientX-b.left,ts*.4,w-ts*.4)}
 panel.addEventListener('pointerdown',e=>{move(e);if(!e.target.closest('.don'))tap()});
-card.addEventListener('click',e=>{if(e.target.closest('.don')&&!CONFIG.donateUrl)e.preventDefault()});
+card.addEventListener('click',e=>{if(e.target.closest('.don')){track('donar','Clic en donar');if(!CONFIG.donateUrl)e.preventDefault()}});
 cv.addEventListener('pointerdown',move);
 addEventListener('pointermove',move);
 addEventListener('keydown',e=>{
@@ -234,4 +239,6 @@ function loop(ts_){
 addEventListener('resize',resize);
 if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);
 resize();showStart();requestAnimationFrame(loop);
-</script></body></html>
+</script>
+<script data-goatcounter="https://laud.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body></html>
