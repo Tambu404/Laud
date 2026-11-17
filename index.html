@@ -43,7 +43,6 @@ const CONFIG={
 };
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),panel=document.getElementById('panel'),card=document.getElementById('card'),stage=document.getElementById('stage');
 document.getElementById('ft').innerHTML=(CONFIG.logo?'<img src="'+CONFIG.logo+'" alt="Logo de AQM">':'<span class="logo">🐢</span>')+'<div><p>'+CONFIG.text+'</p><nav>'+CONFIG.links.map(l=>'<a href="'+l.u+'" target="_blank" rel="noopener">'+l.t+'</a>').join('')+'</nav></div>';
-const FACTS=["Las tortugas laúd comen sobre todo medusas.","Una bolsa flotando se parece mucho a una medusa.","El plástico puede bloquear su estómago y dejarlas sin alimentarse.","Cada bolsa reutilizable es una bolsa menos en el mar."];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let overFact='',yaw=0,w=0,h=0,ts=110,r=24,ty=0,t=0,ph=0,state='start',score=0,lives=3,level=1,catches=0,streak=0,best=0,bestLvl=1,overAt=0,spawn=0,items=[],fx=[],bub=[],tx=0,tgt=0,vx=0,flash=0,toast={t:0,s:''};
 try{best=+localStorage.getItem('tl_best2')||0;bestLvl=+localStorage.getItem('tl_lvl2')||1}catch(e){}
@@ -143,10 +142,10 @@ function resize(){
 function startGame(){score=0;lives=3;level=1;catches=0;streak=0;items=[];fx=[];spawn=.6;state='play';panel.classList.add('hide');say('¡Atrapá medusas y esquivá bolsas!',3)}
 function addItem(){
   const isBag=Math.random()<Math.min(.55,.3+.02*level),amp=10+Math.random()*16;
-  items.push({bag:isBag,x0:amp+r+Math.random()*(w-2*(amp+r)),x:0,y:-50,v:h*Math.min(.62,.24+.025*level)*(.85+Math.random()*.3),f:.5+Math.random()*.7,ph:Math.random()*6,amp});
+  items.push({bag:isBag,x0:amp+r+Math.random()*(w-2*(amp+r)),x:0,y:-50,v:h*Math.min(.62,.17+.025*level)*(.85+Math.random()*.3),f:.5+Math.random()*.7,ph:Math.random()*6,amp});
 }
 function endGame(){
-  state='over';overAt=performance.now();overFact=FACTS[Math.random()*FACTS.length|0];
+  state='over';overAt=performance.now();
   if(score>best){best=score;try{localStorage.setItem('tl_best2',best)}catch(e){}}
   if(level>bestLvl){bestLvl=level;try{localStorage.setItem('tl_lvl2',bestLvl)}catch(e){}}
   showOver();
@@ -212,7 +211,7 @@ function showStart(){
   panel.classList.remove('hide');
 }
 function showOver(){
-  card.innerHTML='<h1>Fin del juego</h1><div class="stats">Puntaje: <b>'+score+'</b> · Récord: <b>'+best+'</b><br>Nivel: <b>'+level+'</b> · Nivel máximo: <b>'+bestLvl+'</b></div><p class="fact">'+overFact+'</p><div class="go">Tocá para reiniciar</div><a class="don" href="'+(CONFIG.donateUrl||'#')+'" target="_blank" rel="noopener">Donar ❤</a>';
+  card.innerHTML='<h1>Fin del juego</h1><div class="stats">Puntaje: <b>'+score+'</b> · Récord: <b>'+best+'</b><br>Nivel: <b>'+level+'</b> · Nivel máximo: <b>'+bestLvl+'</b></div><div class="go">Tocá para reiniciar</div><a class="don" href="'+(CONFIG.donateUrl||'#')+'" target="_blank" rel="noopener">Donar ❤</a>';
   panel.classList.remove('hide');
 }
 function tap(){if((state==='start'||state==='over')&&performance.now()-overAt>700)startGame()}
